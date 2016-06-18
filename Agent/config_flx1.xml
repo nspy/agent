@@ -1,0 +1,8 @@
+<config>
+	<host>101</host>
+	<community>private</community>
+	<trap>0.0.0.0:1620</trap>
+	<poll>0</poll>
+	<cpreload>10</cpreload>
+	<openflow>tcp:137.222.204.24</openflow>
+</config>
