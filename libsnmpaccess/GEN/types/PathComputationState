@@ -1,0 +1,6 @@
+"PathComputationState_UNDEFINED" "0"
+"PathComputationState_IDLE" "1"
+"PathComputationState_FAIL" "2"
+"PathComputationState_INPROGS" "3"
+"PathComputationState_ABT" "4"
+"PathComputationState_COMPL" "5"
