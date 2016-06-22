@@ -1,0 +1,4 @@
+"EntityAssignmentState_UNDEFINED" "0"
+"EntityAssignmentState_ASSIGNED" "1"
+"EntityAssignmentState_UNASSIGNED" "2"
+"EntityAssignmentState_NOTASSIGNABLE" "3"

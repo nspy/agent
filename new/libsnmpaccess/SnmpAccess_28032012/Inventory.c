@@ -1,0 +1,1578 @@
+
+#include "Inventory.h"
+#include <assert.h>
+
+static EntityNew_t NewFuncPtr[ENTITY_TYPE_MAX] =
+{
+        (EntityNew_t)NULL,
+        (EntityNew_t)Entity_New,
+        (EntityNew_t)NULL,//EntityNE_New,
+        (EntityNew_t)EntityShelf_New,
+        (EntityNew_t)EntityModule_New,
+        (EntityNew_t)EntityPlug_New,
+        (EntityNew_t)EntityConnection_New,
+        (EntityNew_t)EntityPTP_New,
+        (EntityNew_t)NULL, //EntityOL_New,
+        (EntityNew_t)EntityTunnel_New,
+        (EntityNew_t)NULL, //EntityCNX_New,
+        (EntityNew_t)EntityTENumLink_New,
+        (EntityNew_t)EntityTEUnnumLink_New,
+        (EntityNew_t)NULL, //EntityPath_New,
+        (EntityNew_t)NULL, //EntityPathElement_New,
+};
+
+static EntityDump_t DumpFuncPtr[ENTITY_TYPE_MAX] =
+{
+        (EntityDump_t)NULL,
+        (EntityDump_t)NULL,
+        (EntityDump_t)NULL, //EntityNE_Dump,
+        (EntityDump_t)EntityShelf_Dump,
+        (EntityDump_t)EntityModule_Dump,
+        (EntityDump_t)NULL, //EntityPlug_Dump,
+        (EntityDump_t)EntityConnection_Dump,
+        (EntityDump_t)EntityPTP_Dump,
+        (EntityDump_t)EntityOL_Dump,
+        (EntityDump_t)EntityTunnel_Dump,
+        (EntityDump_t)EntityCNX_Dump,
+        (EntityDump_t)EntityTENumLink_Dump,
+        (EntityDump_t)EntityTEUnnumLink_Dump,
+        (EntityDump_t)NULL,//EntityPath_Dump,
+        (EntityDump_t)EntityPathElement_Dump,
+};
+
+#if 0
+static EntityDup_t DupFunPtr[ENTITY_TYPE_MAX] =
+{
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+        (EntityDup_t)NULL,
+};
+#endif
+
+/******************************************************************************/
+
+
+EntityPtr
+Entity_Create(EntityType_t type)
+{
+    if (type < 0 || type >= ENTITY_TYPE_MAX)
+    {
+        return NULL;
+    }
+
+    if ( NewFuncPtr[type] != NULL )
+    {
+        return NewFuncPtr[type]();
+    }
+
+    return NULL;
+}
+
+size_t
+__Entity_Dump(Entity *e, char *b, size_t s)
+{
+
+    EntityType_t type;
+
+    if (e == NULL)
+    {
+        return 0;
+    }
+
+    type = e->Type;
+
+    if (type < 0 || type >= ENTITY_TYPE_MAX)
+    {
+        return 0;
+    }
+
+    if ( DumpFuncPtr[type] != NULL )
+    {
+        return DumpFuncPtr[type](e, b, s);
+    }
+
+    return (0);
+}
+
+/******************************************************************************/
+
+Entity*
+Entity_New(void)
+{
+    Entity *e = (Entity*)malloc(sizeof(Entity));
+
+    if (e == NULL) return NULL;
+
+    Entity_Init(e);
+
+    return e;
+}
+
+void
+Entity_Init(Entity *e)
+{
+    assert(e != NULL);
+    if (e == NULL) return;
+
+    e->Type = ENTITY_TYPE_GENERIC;
+
+    e->Size = sizeof(Entity);
+
+    e->Index = 0;
+
+    e->Index2 = 0;
+
+    e->Class = 0;
+
+    e->CPClass = 0;
+}
+
+EntityPtr
+Entity_Dup(const EntityPtr pEn)
+{
+    Entity *pCopy = NULL;
+
+    assert(pEn != NULL);
+
+    if (pEn == NULL) return NULL;
+
+    pCopy = (Entity*)malloc(sizeof(Entity));
+
+    if (pCopy != NULL)
+    {
+        memcpy(pCopy, pEn, sizeof(Entity));
+    }
+
+    return pCopy;
+}
+
+/******************************************************************************/
+
+void
+EntityNE_Init(EntityNE *e)
+{
+    if (e == NULL) return;
+
+    Entity_Init(&e->Generic);
+
+    e->Generic.Type = ENTITY_TYPE_NE;
+
+    e->Generic.Size = sizeof(EntityNE);
+
+    e->SysIP = 0;
+
+    e->SysIPMask = 0;
+}
+
+size_t
+EntityNE_Dump(EntityNE *e,char *b,size_t s)
+{
+    if (e == NULL || b == NULL) return 0;
+    return snprintf(b, s, "SYSIP=%s SYSIP-MASK=%s",
+            inet_ntoa(*(struct in_addr*)&e->SysIP),
+            inet_ntoa(*(struct in_addr*)&e->SysIPMask));
+}
+
+/******************************************************************************/
+
+EntityShelf*
+EntityShelf_New(void)
+{
+    EntityShelf *e = (EntityShelf*)malloc(sizeof(EntityShelf));
+    if (e != NULL)
+    {
+        EntityShelf_Init(e);
+    }
+    return e;
+}
+
+void
+EntityShelf_Init(EntityShelf *e)
+{
+    if (e == NULL) return;
+
+    Entity_Init(&e->Generic);
+
+    e->Generic.Type = ENTITY_TYPE_SHELF;
+    e->Generic.Size = sizeof(EntityShelf);
+
+    e->Type = 0;
+    e->Admin = 0;
+    e->Oper = 0;
+    memset(e->Aid, 0, sizeof(e->Aid));
+}
+
+EntityShelf*
+EntityShelf_Dup(const EntityShelf *orig)
+{
+    assert(orig != NULL);
+    EntityShelf *copy = EntityShelf_New();
+    if (copy != NULL)
+    {
+        memcpy(copy, orig, sizeof(EntityShelf));
+    }
+    return copy;
+}
+
+size_t
+EntityShelf_Dump(const EntityShelf *e,char *b, size_t s)
+{
+    if (e == NULL || b == NULL) return 0;
+    return snprintf(b,s,"INDEX=%08x TYPE=%d AID=%s",
+            (int)Entity_Get_Index(e),
+            e->Type,
+            e->Aid);
+}
+
+/******************************************************************************/
+
+EntityModule*
+EntityModule_New(void)
+{
+    EntityModule *e = (EntityModule*)malloc(sizeof(EntityModule));
+    if (e != NULL)
+    {
+        EntityModule_Init(e);
+    }
+    return e;
+}
+
+void
+EntityModule_Init(EntityModule *e)
+{
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+
+    e->Generic.Type = ENTITY_TYPE_MOD;
+    e->Generic.Size = sizeof(EntityModule);
+
+    e->Type = 0;
+    e->Mode = 0;
+    e->Admin = 0;
+    e->Oper = 0;
+    e->RoadmNo = 0;
+    e->Band = 0;
+    e->Channel = 0;
+    memset(e->Aid, 0, sizeof(e->Aid));
+}
+
+EntityModule*
+EntityModule_Dup(const EntityModule *orig)
+{
+    assert(orig != NULL);
+    EntityModule *copy = EntityModule_New();
+    if (copy != NULL)
+    {
+        memcpy(copy, orig, sizeof(EntityModule));
+    }
+    return copy;
+}
+
+size_t
+EntityModule_Dump(const EntityModule *e,char *b,size_t s)
+{
+    if (e == NULL || b == NULL) return 0;
+    return snprintf(b, s, "INDEX=%08x TYPE=%d AID=%s",
+            (int)Entity_Get_Index(e),
+            e->Type,
+            e->Aid);
+}
+
+/******************************************************************************/
+
+EntityPlug*
+EntityPlug_New(void)
+{
+    EntityPlug* e = (EntityPlug*)malloc(sizeof(EntityPlug));
+    if (e != NULL)
+    {
+        EntityPlug_Init(e);
+    }
+    return e;
+}
+
+void
+EntityPlug_Init(EntityPlug *e)
+{
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_PLUG;
+    e->Generic.Size = sizeof(EntityPlug);
+
+    e->ContainedIn = 0;
+    e->Type = 0;
+    e->Admin = 0;
+    e->Oper = 0;
+    memset(e->Aid, 0, sizeof(e->Aid));
+}
+
+EntityPlug*
+EntityPlug_Dup(const EntityPlug *orig)
+{
+    assert(orig != NULL);
+    EntityPlug *copy = EntityPlug_New();
+    if (copy != NULL)
+    {
+        memcpy(copy, orig, sizeof(EntityPlug));
+    }
+    return copy;
+}
+
+/******************************************************************************/
+
+EntityConnection*
+EntityConnection_New(void)
+{
+    EntityConnection *e = (EntityConnection*)malloc(sizeof(EntityConnection));
+    if (e != NULL)
+    {
+        EntityConnection_Init(e);
+    }
+    return e;
+}
+
+void EntityConnection_Init(EntityConnection *e)
+{
+    if (e == NULL) return;
+
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_CONN;
+    e->Generic.Size = sizeof(EntityConnection);
+
+    e->From = 0;
+    e->To = 0;
+    e->Type = 0;
+    e->FromAid[0] = e->ToAid[0] = 0;
+}
+
+EntityConnection* EntityConnection_Dup(const EntityConnection *orig)
+{
+    assert(orig != NULL);
+    EntityConnection *copy = EntityConnection_New();
+    if (copy != NULL)
+    {
+        memcpy(copy,orig,sizeof(EntityConnection));
+    }
+    return copy;
+}
+
+size_t
+EntityConnection_Dump(const EntityConnection *e, char *b, size_t s)
+{
+    if (e == NULL || b == NULL) return (0);
+    return snprintf(b, s, "INDEX=%08x FROM=%08x TO=%08x TYPE=%d FROM-AID=%s TO-AID=%s",
+            (int)Entity_Get_Index(e),
+            (int)e->From, (int)e->To, e->Type, e->FromAid, e->ToAid);
+}
+
+/******************************************************************************/
+
+EntityPTP*
+EntityPTP_New(void)
+{
+    EntityPTP *e = (EntityPTP*)malloc(sizeof(EntityPTP));
+    if (e != NULL)
+    {
+        EntityPTP_Clear(e);
+    }
+    return e;
+}
+
+void
+EntityPTP_Clear(EntityPTP *e)
+{
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_PTP;
+    e->Generic.Size = sizeof(EntityPTP);
+
+    e->ContainedIn = 0;
+    memset(e->Aid, 0, sizeof(e->Aid));
+}
+
+EntityPTP*
+EntityPTP_Copy(const EntityPTP *orig)
+{
+    assert(orig != NULL);
+    EntityPTP *copy = EntityPTP_New();
+    if (copy != NULL)
+    {
+        memcpy(copy, orig, sizeof(EntityPTP));
+    }
+    return copy;
+}
+
+size_t
+EntityPTP_Dump(const EntityPTP *e, char *b, size_t s)
+{
+    if (e == NULL || b == NULL) return (0);
+    return snprintf(b, s, "INDEX=%08x AID=%s CONTAINED-IN=%08x",
+            (int)e->Generic.Index, e->Aid, (int)e->ContainedIn);
+}
+
+/******************************************************************************/
+
+void
+EntityOL_Init(EntityOL *e)
+{
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_OL;
+    e->Generic.Size = sizeof(EntityOL);
+    memset(e->Aid, sizeof(e->Aid), 0);
+    //e->Wch = X_List_New((X_ListMemFree_t)(AuxEntityData_Free));
+}
+
+EntityOL*
+EntityOL_Copy(const EntityOL *orig)
+{
+    EntityOL *copy;
+    if (orig == NULL) return NULL;
+    copy = malloc(sizeof(EntityOL));
+    if (copy == NULL) return NULL;
+    memcpy(copy, orig, sizeof(EntityOL));
+    return copy;
+}
+
+size_t
+EntityOL_Dump(const EntityOL *e, char *b, size_t s)
+{
+    if (e == NULL || b == NULL) return (0);
+    return snprintf(b, s, "INDEX=%08x AID=%s",
+            (int)Entity_Get_Index(e), e->Aid);
+}
+
+/******************************************************************************/
+
+EntityTunnel*
+EntityTunnel_New(void)
+{
+    EntityTunnel *e = (EntityTunnel*)malloc(sizeof(EntityTunnel));
+    if (e != NULL)
+    {
+        EntityTunnel_Init(e);
+    }
+    return e;
+}
+
+void
+EntityTunnel_Init(EntityTunnel *e)
+{
+    if (e == NULL) return;
+
+    Entity_Init(&e->Generic);
+
+    e->Generic.Type = ENTITY_TYPE_TUNNEL;
+    e->Generic.Size = sizeof(EntityTunnel);
+
+    e->Admin = 0;
+    e->ToAid = 0;
+    e->FromAid = 0;
+    e->ToIP = 0;
+    memset(e->Id, sizeof(e->Id), 0);
+    e->Facility = 0;
+}
+
+EntityTunnel*
+EntityTunnel_Dup(const EntityTunnel *e)
+{
+    EntityTunnel *copy;
+    if (e == NULL) return NULL;
+    copy = EntityTunnel_New();
+    if (copy != NULL)
+    {
+        memcpy(copy, e, sizeof(EntityTunnel));
+    }
+    return copy;
+}
+
+size_t
+EntityTunnel_Dump(EntityTunnel *e,char *b,size_t s)
+{
+    if (e == NULL || b == NULL) return 0;
+    return snprintf(b, s, "INDEX=%08x ADMIN=%d (%s) FROM-AID=%08x TO-AID=%08x TO-NODEIP=%08x ID=%s",
+            (int)e->Generic.Index,
+            e->Admin,
+            PrintAdmin(e->Admin),
+            e->FromAid, e->ToAid, e->ToIP, e->Id);
+}
+
+void
+EntityTunnel_Set_Id(EntityTunnel *e, const char *id)
+{
+    if (e == NULL || id == NULL) return;
+    strncpy(e->Id, id, sizeof(e->Id));
+}
+
+/******************************************************************************/
+
+void
+EntityCNX_Init(EntityCNX *e)
+{
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_CNX;
+    e->Generic.Size = sizeof(EntityCNX);
+
+    e->Oper = 0;
+    e->TunNo = 0;
+    e->ToNodeIP = 0;
+    e->FromNodeIP = 0;
+    e->EqState = 0;
+    memset(e->Id, sizeof(e->Id), 0);
+}
+
+EntityCNX*
+EntityCNX_Copy(const EntityCNX *orig)
+{
+    EntityCNX *copy;
+    if (orig == NULL) return NULL;
+    copy = (EntityCNX*)malloc(sizeof(EntityCNX));
+    if(copy != NULL)
+    {
+        memcpy(copy,orig,sizeof(EntityCNX));
+    }
+    return copy;
+}
+
+size_t
+EntityCNX_Dump(const EntityCNX *e,char *b,size_t s)
+{
+    if(e == NULL || b == NULL) return 0;
+    return snprintf(b,s,"INDEX=%08x FROM-IP=%08x TO-IP=%08x TNL-ID=%s OPER=%d",
+            (int)e->Generic.Index, e->FromNodeIP, e->ToNodeIP, e->Id, e->Oper);
+}
+
+/******************************************************************************/
+
+EntityTEUnnumLink*
+EntityTEUnnumLink_New(void)
+{
+    EntityTEUnnumLink* e = (EntityTEUnnumLink*)malloc(sizeof(EntityTEUnnumLink));
+    if (e != NULL)
+    {
+        EntityTEUnnumLink_Init(e);
+    }
+    return e;
+}
+
+void
+EntityTEUnnumLink_Init(EntityTEUnnumLink *e)
+{
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_TE_UNNUM_LINK;
+    e->Generic.Size = sizeof(EntityTEUnnumLink);
+
+    e->NodeIP = 0;
+    e->LinkId = 0;
+    e->PhyLink = 0;
+    e->Synch = 0;
+    e->FendNodeIP = 0;
+    e->FendLinkId = 0;
+}
+
+EntityTEUnnumLink*
+EntityTEUnnumLink_Copy(const EntityTEUnnumLink *orig)
+{
+    EntityTEUnnumLink* copy = EntityTEUnnumLink_New();
+    if (copy != NULL)
+    {
+        memcpy(copy, orig, sizeof(EntityTEUnnumLink));
+    }
+    return copy;
+}
+
+size_t
+EntityTEUnnumLink_Dump(EntityTEUnnumLink *e, char *b, size_t s)
+{
+    if (e == NULL || b == NULL) return 0;
+
+    return snprintf(b, s, "NODE-IP=%08x LINK-ID=%08x PHYLINK=%08x SYNCH=%d "
+            "FENDNODE-IP=%08x FENDLINK-ID=%08x",
+            e->NodeIP,
+            e->LinkId,
+            e->PhyLink,
+            e->Synch,
+            e->FendNodeIP,
+            e->FendLinkId);
+}
+
+/******************************************************************************/
+
+EntityTENumLink*
+EntityTENumLink_New(void)
+{
+    EntityTENumLink *e = EntityTEUnnumLink_New();
+    if (e == NULL) return NULL;
+    e->Generic.Type = ENTITY_TYPE_TE_NUM_LINK;
+    return e;
+}
+
+#if 0
+void
+EntityTENumLink_Init(EntityTENumLink *e)
+{
+    if (e == NULL) return;
+    memset(e, 0, sizeof(EntityTENumLink));
+}
+
+EntityTENumLink*
+EntityTENumLink_Copy(const EntityTENumLink *pOrig)
+{
+    EntityTENumLink* pCopy;
+    if (pOrig == NULL) return NULL;
+    pCopy = EntityTENumLink_New();
+    if (pCopy == NULL) return NULL;
+    memcpy(pCopy, pOrig, sizeof(EntityTENumLink));
+    return pCopy;
+}
+#endif
+
+size_t
+EntityTENumLink_Dump(EntityTENumLink *e, char *b, size_t s)
+{
+    if (e == NULL || b == NULL) return 0;
+
+    return snprintf(b, s, "NODE-IP=%08x LINK-IP=%08x PHYLINK=%08x SYNCH=%d "
+            "FENDNODE-IP=%08x FENDLINK-ID=%08x",
+            e->NodeIP,
+            e->LinkId,
+            e->PhyLink,
+            e->Synch,
+            e->FendNodeIP,
+            e->FendLinkId);
+}
+
+/******************************************************************************/
+
+void
+EntityPath_Init(EntityPath *e)
+{
+    assert(e != NULL);
+    if (e == NULL) return;
+    Entity_Init(&e->Generic);
+    e->Generic.Type = ENTITY_TYPE_PATH;
+    e->Generic.Size = sizeof(EntityPath);
+    e->PathID[0] = '\0';
+}
+
+/******************************************************************************/
+
+void
+EntityPathElement_Init(EntityPathElement *e)
+{
+    assert (e != NULL);
+    if (e == NULL) return;
+
+    Entity_Init(&e->Generic);
+
+    e->Generic.Type = ENTITY_TYPE_PATH_ELEMENT;
+    e->Generic.Size = sizeof(EntityPathElement);
+
+    e->Type = 0;
+    e->LifIP = 0;
+    e->LifID = 0;
+    e->NodeIP = 0;
+    e->Follow = 0;
+    e->Seq = 0;
+    e->UpChannel = 0;
+    e->DownChannel = 0;
+    e->PathID[0] = '\0';
+}
+
+EntityPathElement*
+EntityPathElement_Dup(EntityPathElement *pOrig)
+{
+    EntityPathElement *pDup;
+
+    if (pOrig == NULL) return NULL;
+
+    pDup = malloc(sizeof(EntityPathElement));
+
+    if (pDup == NULL) return NULL;
+
+    memcpy(pDup, pOrig, sizeof(EntityPathElement));
+
+    return pDup;
+}
+
+size_t
+EntityPathElement_Dump(EntityPathElement *e, char *b, size_t s)
+{
+    char NodeIP[32], LifIP[32];
+
+    if (e == NULL || b == NULL) return 0;
+
+    strcpy(NodeIP, inet_ntoa(*(struct in_addr*)&e->NodeIP));
+    strcpy(LifIP, inet_ntoa(*(struct in_addr*)&e->LifIP));
+
+    return snprintf(b, s, "TE-TYPE=%d SEQ=%d NODE-IP=%s LIF-IP=%s LIF-ID=%d",
+            e->Type, e->Seq,
+            NodeIP,
+            LifIP,
+            e->LifID);
+}
+
+/******************************************************************************/
+
+void
+AuxEntityData_Init(AuxEntityData *p)
+{
+    if (p == NULL) return;
+    p->Index = 0;
+    p->Aid[0] = '\0';
+    p->Class = 0;
+}
+
+AuxEntityData*
+AuxEntityData_Dup(const AuxEntityData *p)
+{
+    AuxEntityData *pCopy;
+
+    if (p == NULL) return NULL;
+
+    pCopy = (AuxEntityData*)malloc(sizeof(AuxEntityData));
+
+    if (pCopy != NULL)
+    {
+        memcpy(pCopy, p, sizeof(AuxEntityData));
+    }
+
+    return pCopy;
+}
+
+void
+AuxEntityData_Free(AuxEntityData *p)
+{
+    if (p) free(p);
+}
+
+/******************************************************************************/
+
+void
+EntityCrs_Init(EntityCrs *pCrs)
+{
+    assert(pCrs != NULL);
+    memset(pCrs, 0, sizeof(EntityCrs));
+}
+
+EntityCrs*
+EntityCrs_Dup(const EntityCrs *pCrs)
+{
+    EntityCrs *pCopy;
+
+    assert(pCrs != NULL);
+
+    pCopy = (EntityCrs*)malloc(sizeof(EntityCrs));
+
+    memcpy(pCopy, pCrs, sizeof(EntityCrs));
+    return pCopy;
+}
+
+size_t
+EntityCrs_Dump(const EntityCrs *Crs, char *Buf, size_t Size)
+{
+    return snprintf(Buf, Size, "FROM=%s TO=%s",
+            Crs->FromAid,
+            Crs->ToAid);
+}
+
+/******************************************************************************/
+
+EntityPTP*
+Find(unsigned long index, X_ListPtr pList)
+{
+    X_ListNodePtr pNode;
+    EntityPTP *pEn;
+
+    if (pList == NULL) return NULL;
+
+    X_List_ForEach(pList, pNode)
+    {
+        pEn = (EntityPTP*)(pNode->Data);
+        if (Entity_Get_Index(pEn) == index)
+        {
+            return pEn;
+        }
+    }
+    return NULL;
+}
+
+X_ListNodePtr
+__FindByIndex(const Entity *e, X_ListPtr pList, Entity **ee)
+{
+    X_ListNodePtr pNode;
+
+    assert (e != NULL && pList != NULL);
+
+    pNode = X_List_Find(pList, e, (X_ListCompare_t)CompareByIndex);
+
+    if (pNode != NULL)
+    {
+        if (ee != NULL) *ee = (Entity*)pNode->Data;
+        return pNode;
+    }
+
+    return NULL;
+}
+
+X_ListNodePtr
+FindTELink(X_ListPtr pList, unsigned int NodeIP, unsigned int LinkID, EntityTEUnnumLink **Link)
+{
+    X_ListNodePtr pNode;
+    EntityTEUnnumLink *pLink;
+
+    if (pList == NULL)
+    {
+        return NULL;
+    }
+
+    X_List_ForEach(pList, pNode)
+    {
+        pLink = (EntityTEUnnumLink*)(pNode->Data);
+
+        if (NodeIP != 0 && LinkID == 0)
+        {
+            if (pLink->NodeIP == NodeIP)
+            {
+                *Link = pLink;
+                return pNode;
+            }
+        }
+        else if (NodeIP == 0 && LinkID == 0)
+        {
+            if (pLink->LinkId == LinkID)
+            {
+                *Link = pLink;
+                return pNode;
+            }
+        }
+        else if (NodeIP != 0 && LinkID != 0)
+        {
+            if (pLink->NodeIP == NodeIP && pLink->LinkId == LinkID)
+            {
+                *Link = pLink;
+                return pNode;
+            }
+        }
+        else if (NodeIP == 0 && LinkID != 0)
+        {
+            if (pLink->LinkId == LinkID)
+            {
+                *Link = pLink;
+                return pNode;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+/**
+ * Find CNX that matches given tunnel.
+ */
+int
+FindCNX(X_ListPtr pList, const EntityTunnel *pEnt, X_ListNodePtr *pNode)
+{
+    EntityCNX *pTemp;
+
+    if (pList == NULL || pEnt == NULL || pNode == NULL)
+    {
+        return (-1);
+    }
+
+    if (*pNode == NULL)
+    {
+        *pNode = X_List_Head(pList);
+    }
+    else
+    {
+        *pNode = (*pNode)->Next;
+    }
+
+    for (; *pNode; *pNode = (*pNode)->Next)
+    {
+        pTemp = (EntityCNX*)(*pNode)->Data;
+
+        if (pTemp->ToNodeIP == pEnt->ToIP &&
+                !strcmp(pTemp->Id, pEnt->Id) )
+        {
+            return (0);
+        }
+    }
+
+    return (-1);
+}
+
+int
+CompareByIndex(const Entity *p1, const Entity *p2)
+{
+    assert(p1 != NULL && p2 != NULL);
+
+    if (p1->Index == p2->Index)
+    {
+        return (0);
+    }
+
+    return (1);
+}
+
+
+const char *PrintAdmin(unsigned int admin)
+{
+    switch(admin)
+    {
+    case 0: return "UNDEFINED";
+    case 1: return "UAS";
+    case 2: return "IS";
+    case 3: return "AINS";
+    case 4: return "MGT";
+    case 5: return "MT";
+    case 6: return "DISABLED";
+    case 7: return "PPS";
+    }
+    return "???";
+}
+
+/******************************************************************************/
+
+int
+OL_To_PhyLink(int ol_num)
+{
+    if (ol_num < 1 || ol_num > 16) return (0);
+    return (200 + ol_num) * 1000;
+}
+
+int
+OL_To_LogicalInterfaceIndex(int ol_num)
+{
+    if (ol_num < 1 || ol_num > 16) return (0);
+    return 196608 + ol_num;
+}
+
+int
+PhyLink_To_OL(int id)
+{
+    id = id / 1000;
+    id -= 200;
+
+    if (id < 1 || id > 16) return (0);
+
+    return id;
+}
+
+int
+FindPeer(X_ListPtr Num, X_ListPtr Unnum, unsigned int IP, int OL, unsigned int *PeerIP, int *PeerOL)
+{
+    int PhyLink;
+    X_ListNodePtr Node, Node2;
+    EntityTENumLink *NumLink, *NumLink2;
+    EntityTEUnnumLink *UnnumLink, *UnnumLink2;
+
+    assert(Num != NULL && Unnum != NULL);
+
+    PhyLink = OL_To_PhyLink(OL);
+
+    if (PhyLink == 0)
+    {
+        return -1;
+    }
+
+    // Numbered links
+    X_List_ForEach(Num, Node)
+    {
+        NumLink = (EntityTENumLink*)Node->Data;
+
+        if (NumLink->NodeIP == IP &&
+                NumLink->PhyLink == PhyLink &&
+                NumLink->Synch == 1)
+        {
+            // Find matching link
+            X_List_ForEach(Num, Node2)
+            {
+                NumLink2 = (EntityTENumLink*)Node2->Data;
+
+                if (NumLink2->LinkId == NumLink->FendLinkId &&
+                        NumLink2->NodeIP == NumLink->FendNodeIP &&
+                        NumLink2->Synch == 1)
+                {
+                    *PeerIP = NumLink2->NodeIP;
+                    *PeerOL = PhyLink_To_OL(NumLink2->PhyLink);
+                    return 0;
+                }
+            }
+        }
+
+    }
+
+    // Unnumbered links
+    X_List_ForEach(Unnum, Node)
+    {
+        UnnumLink = (EntityTENumLink*)Node->Data;
+        if (UnnumLink->NodeIP == IP &&
+                UnnumLink->PhyLink == PhyLink &&
+                UnnumLink->Synch == 1)
+        {
+            // Find matching link
+            X_List_ForEach(Unnum, Node2)
+            {
+                UnnumLink2 = (EntityTENumLink*)Node2->Data;
+
+                if (UnnumLink2->LinkId == UnnumLink->FendLinkId &&
+                        UnnumLink2->NodeIP == UnnumLink->FendNodeIP &&
+                        UnnumLink2->Synch == 1)
+                {
+                    *PeerIP = UnnumLink2->NodeIP;
+                    *PeerOL = PhyLink_To_OL(UnnumLink2->PhyLink);
+                    return 0;
+                }
+            }
+        }
+    }
+
+    return -1;
+}
+
+int
+FindPeerLink(X_ListPtr links, const EntityTEUnnumLink *pLink, EntityTEUnnumLink **pPeerLink)
+{
+    X_ListNodePtr pNode;
+    EntityTEUnnumLink *pTmpLink;
+
+    if (links == NULL || pLink == NULL || pPeerLink == NULL)
+    {
+        return (-1);
+    }
+
+    X_List_ForEach(links, pNode)
+    {
+        pTmpLink = (EntityTEUnnumLink*)(pNode->Data);
+
+        if ( (pTmpLink->LinkId == pLink->FendLinkId) &&
+                (pTmpLink->NodeIP == pLink->FendNodeIP) &&
+                (pTmpLink->FendLinkId == pLink->LinkId) &&
+                (pTmpLink->FendNodeIP == pLink->NodeIP)
+                )
+        {
+            *pPeerLink = pTmpLink;
+            return (0);
+        }
+    }
+
+    return (-1);
+}
+
+/** Initialize with default values **/
+void
+CrossConnect_Init(CrossConnect *pCrs)
+{
+    if (pCrs != NULL)
+    {
+        memset(pCrs, 0, sizeof(CrossConnect));
+    }
+}
+
+/** Duplicate CrossConnect structure **/
+CrossConnect*
+CrossConnect_Dup(const CrossConnect *pCrs)
+{
+    CrossConnect *pCopy;
+
+    if (pCrs == NULL) return NULL;
+
+    pCopy = (CrossConnect*)malloc(sizeof(CrossConnect));
+
+    if (pCopy != NULL)
+    {
+        memcpy(pCopy, pCrs, sizeof(CrossConnect));
+    }
+
+    return pCopy;
+}
+
+
+int
+ConvertPathDescriptionFromGMPLS(X_ListPtr NumLinks, X_ListPtr UnnumLinks,
+        X_ListPtr pPELs, X_ListPtr CrsList)
+{
+    X_ListNodePtr pNode;
+    EntityPathElement *pCurr, *pPrev = NULL, *pFirst, *pLast;
+    EntityTEUnnumLink *pLink, *pPeerLink;
+    CrossConnect Crs;
+    unsigned int nextNode = 0;
+    unsigned int nextLinkId = 0;
+
+    if (NumLinks == NULL || UnnumLinks == NULL || pPELs == NULL || CrsList == NULL)
+    {
+        return -1;
+    }
+
+    pFirst = (EntityPathElement*)X_List_Head(pPELs)->Data;
+    pLast = (EntityPathElement*)X_List_Tail(pPELs)->Data;
+
+    Crs.NE = 0;
+    Crs.Output = Crs.Input = 0;
+
+    X_List_ForEach(pPELs, pNode)
+    {
+        pCurr = (EntityPathElement*)(pNode->Data);
+
+        if (pCurr->Type == TeType_NODE)
+        {
+            // ...
+
+        }
+        else if (pCurr->Type == TeType_LINKNR)
+        {
+            if (NULL != FindTELink(NumLinks, 0, pCurr->LifIP, &pLink))
+            {
+                if (pFirst->NodeIP == pLink->NodeIP)
+                {
+                    FindTELink(NumLinks, 0, pLink->FendLinkId, &pPeerLink);
+                    nextNode = pLink->FendNodeIP;
+                    nextLinkId = PhyLink_To_OL(pPeerLink->PhyLink);
+
+                    Crs.NE = pLink->NodeIP;
+                    Crs.Input = ~(0); // from-aid
+                    Crs.Output = PhyLink_To_OL(pLink->PhyLink);
+
+                    Crs.InChannel = pCurr->DownChannel;
+                    Crs.OutChannel = Crs.InChannel;
+                    // ok
+                }
+                else if (pLink->NodeIP == pLast->NodeIP)
+                {
+                    Crs.NE = pLink->NodeIP;
+                    Crs.Input = nextLinkId;
+                    Crs.Output = ~(0);
+
+                    Crs.InChannel = pCurr->DownChannel;
+                    Crs.OutChannel = Crs.InChannel;
+                }
+                else if (nextNode != 0 && pLink->NodeIP == nextNode)
+                {
+                    Crs.NE = pLink->NodeIP;
+                    Crs.Input = nextLinkId;
+                    Crs.Output = PhyLink_To_OL(pLink->PhyLink);
+
+                    Crs.InChannel = pCurr->DownChannel;
+                    Crs.OutChannel = Crs.InChannel;
+
+                    FindTELink(NumLinks, 0, pLink->FendLinkId, &pPeerLink);
+                    nextNode = pLink->FendNodeIP;
+                    nextLinkId = PhyLink_To_OL(pPeerLink->PhyLink);
+
+
+                    if (nextNode == pLast->NodeIP)
+                    {
+                        if (Crs.NE && Crs.Output && Crs.Input)
+                        {
+                            fprintf(stderr, "\t<(%d, %d), (%d, %d)> @ %s \r\n",
+                                    Crs.Input, ADVA_Channel_To_Freq(Crs.InChannel),
+                                    Crs.Output, ADVA_Channel_To_Freq(Crs.OutChannel),
+                                    inet_ntoa(*(struct in_addr*)&Crs.NE));
+                            X_List_Append(CrsList, CrossConnect_Dup(&Crs));
+
+
+                            Crs.NE = pLast->NodeIP;
+                            Crs.Input = nextLinkId;
+                            Crs.Output = ~(0);
+                            Crs.InChannel = pCurr->DownChannel;
+                            Crs.OutChannel = Crs.InChannel;
+
+                            fprintf(stderr, "\t<(%d, %d), (%d, %d)> @ %s \r\n",
+                                    Crs.Input, ADVA_Channel_To_Freq(Crs.InChannel),
+                                    Crs.Output, ADVA_Channel_To_Freq(Crs.OutChannel),
+                                    inet_ntoa(*(struct in_addr*)&Crs.NE));
+                            X_List_Append(CrsList, CrossConnect_Dup(&Crs));
+                            Crs.NE = 0;
+                        }
+                        break;
+                    }
+                }
+            }
+            // ...
+        }
+        else if (pCurr->Type == TeType_LINKUN)
+        {
+            //pULink = FindTELink(UnnumLinks, )
+            // ...
+            if (NULL != FindTELink(UnnumLinks, pCurr->NodeIP, pCurr->LifID, &pLink))
+            {
+                if (pFirst->NodeIP == pLink->NodeIP)
+                {
+                    FindTELink(UnnumLinks, pLink->FendNodeIP, pLink->FendLinkId, &pPeerLink);
+                    nextNode = pLink->FendNodeIP;
+                    nextLinkId = PhyLink_To_OL(pPeerLink->PhyLink);
+
+                    Crs.NE = pLink->NodeIP;
+                    Crs.Input = ~(0); // from-aid
+                    Crs.Output = PhyLink_To_OL(pLink->PhyLink);
+                    Crs.InChannel = pCurr->DownChannel;
+                    Crs.OutChannel = Crs.InChannel;
+                }
+                else if (pLink->NodeIP == pLast->NodeIP)
+                {
+                    Crs.NE = pLink->NodeIP;
+                    Crs.Input = nextLinkId;
+                    Crs.Output = ~(0);
+
+                    Crs.InChannel = pCurr->DownChannel;
+                    Crs.OutChannel = Crs.InChannel;
+                }
+                else if (nextNode != 0 && pCurr->NodeIP == pLink->NodeIP)
+                {
+                    Crs.NE = pLink->NodeIP;
+                    Crs.Input = nextLinkId;
+                    Crs.Output = PhyLink_To_OL(pLink->PhyLink);
+                    Crs.InChannel = pCurr->DownChannel;
+                    Crs.OutChannel = Crs.InChannel;
+
+                    FindTELink(UnnumLinks, pLink->FendNodeIP, pLink->FendLinkId, &pPeerLink);
+                    nextNode = pLink->FendNodeIP;
+                    nextLinkId = PhyLink_To_OL(pPeerLink->PhyLink);
+
+
+                    if (nextNode == pLast->NodeIP)
+                    {
+                        if (Crs.NE && Crs.Output && Crs.Input)
+                        {
+                            fprintf(stderr, "\t<(%d, %d), (%d, %d)> @ %s \r\n",
+                                    Crs.Input, ADVA_Channel_To_Freq(Crs.InChannel),
+                                    Crs.Output, ADVA_Channel_To_Freq(Crs.OutChannel),
+                                    inet_ntoa(*(struct in_addr*)&Crs.NE));
+                            X_List_Append(CrsList, CrossConnect_Dup(&Crs));
+
+
+                            Crs.NE = pLast->NodeIP;
+                            Crs.Input = nextLinkId;
+                            Crs.Output = ~(0);
+                            Crs.InChannel = pCurr->DownChannel;
+                            Crs.OutChannel = Crs.InChannel;
+
+                            fprintf(stderr, "\t<(%d, %d), (%d, %d)> @ %s \r\n",
+                                    Crs.Input, ADVA_Channel_To_Freq(Crs.InChannel),
+                                    Crs.Output, ADVA_Channel_To_Freq(Crs.OutChannel),
+                                    inet_ntoa(*(struct in_addr*)&Crs.NE));
+                            X_List_Append(CrsList, CrossConnect_Dup(&Crs));
+
+                            Crs.NE = 0;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        else if (pCurr->Type == TeType_UNDEFINED)
+        {
+            /*
+            if (pCurr->NodeIP == pLast->NodeIP)
+            {
+                Crs.NE = pCurr->NodeIP;
+                Crs.Input = Crs.Output;
+                Crs.Output = ~(0);
+                Crs.InChannel = Crs.OutChannel;
+            }
+            */
+        }
+
+        if (Crs.NE && Crs.Output && Crs.Input)
+        {
+            fprintf(stderr, "\t<(%d, %d), (%d, %d)> @ %s \r\n",
+                    Crs.Input, ADVA_Channel_To_Freq(Crs.InChannel),
+                    Crs.Output, ADVA_Channel_To_Freq(Crs.OutChannel),
+                    inet_ntoa(*(struct in_addr*)&Crs.NE));
+            X_List_Append(CrsList, CrossConnect_Dup(&Crs));
+            Crs.NE = 0;
+        }
+
+        pPrev = pCurr;
+    }
+
+    return 0;
+}
+
+
+int
+ConvertPathDescriptionToGMPLS(X_ListPtr NumLinks, X_ListPtr UnnumLinks,
+        X_ListPtr CrsList, X_ListPtr PELList)
+{
+    X_ListNodePtr pNode, pNode2;
+    CrossConnect *pCrs, *pCrsFirst, *pCrsLast;
+    EntityTENumLink *pLink;
+    EntityPathElement PEL, *pPEL;
+    unsigned int Seq = 1;
+
+    if (NumLinks == NULL || UnnumLinks == NULL ||
+            CrsList == NULL || PELList == NULL)
+    {
+        return -1;
+    }
+
+    if (X_List_Size(CrsList) == 0)
+    {
+        return -1;
+    }
+
+    pCrsFirst = (CrossConnect*)X_List_Head(CrsList)->Data;
+    pCrsLast = (CrossConnect*)X_List_Tail(CrsList)->Data;
+
+    X_List_ForEach(CrsList, pNode)
+    {
+        pCrs = (CrossConnect*)(pNode->Data);
+        pPEL = NULL;
+
+        if (pCrs == pCrsLast)
+            continue;
+
+        X_List_ForEach(NumLinks, pNode2)
+        {
+            pLink = (EntityTENumLink*)(pNode2->Data);
+
+            if (pLink->NodeIP == pCrs->NE && OL_To_PhyLink(pCrs->Output) == pLink->PhyLink)
+            {
+                pPEL = &PEL;
+
+                EntityPathElement_Init(&PEL);
+                PEL.Seq = Seq++;
+                PEL.Type = TeType_LINKNR;
+                PEL.UpChannel = pCrs->InChannel;
+                PEL.DownChannel = pCrs->OutChannel;
+                PEL.LifIP = pLink->LinkId;
+            }
+        }
+
+        if (pPEL != NULL)
+        {
+            ///
+            X_List_Append(PELList, EntityPathElement_Dup(pPEL));
+            continue;
+        }
+
+        X_List_ForEach(UnnumLinks, pNode2)
+        {
+            pLink = (EntityTENumLink*)(pNode2->Data);
+
+            if (pLink->NodeIP == pCrs->NE && OL_To_PhyLink(pCrs->Output) == pLink->PhyLink)
+            {
+                pPEL = &PEL;
+
+                EntityPathElement_Init(&PEL);
+                PEL.Seq = Seq++;
+                PEL.Type = TeType_LINKUN;
+                PEL.UpChannel = pCrs->InChannel;
+                PEL.DownChannel = pCrs->OutChannel;
+                PEL.NodeIP = pLink->NodeIP;
+                PEL.LifID = OL_To_LogicalInterfaceIndex(pCrs->Output);
+            }
+        }
+
+        if (pPEL != NULL)
+        {
+            ///
+            X_List_Append(PELList, EntityPathElement_Dup(pPEL));
+            continue;
+        }
+    }
+
+    return 0;
+}
+
+int
+ADVA_Channel_To_Freq(Channel_t ch)
+{
+    switch (ch)
+    {
+    case Channel_DC1: return 195600;
+    case Channel_DC2: return 195100;
+    case Channel_DC3: return 194600;
+    case Channel_DC4: return 194100;
+    case Channel_DC5: return 193900;
+    case Channel_DC6: return 193400;
+    case Channel_DC7: return 192900;
+    case Channel_DC8: return 192400;
+    case Channel_DC9: return 194000;
+    case Channel_DL1: return 190600;
+    case Channel_DL2: return 190100;
+    default: break;
+    }
+
+    if (ch >= Channel_D01 && ch <= Channel_D04)
+    {
+        return 196000 - (ch - Channel_D01) * 100;
+    }
+    else if (ch >= Channel_D05 && ch <= Channel_D08)
+    {
+        return 195500 - (ch - Channel_D05) * 100;
+    }
+    else if (ch >= Channel_D09 && ch <= Channel_D12)
+    {
+        return 195000 - (ch - Channel_D09) * 100;
+    }
+    else if (ch >= Channel_D13 && ch <= Channel_D16)
+    {
+        return 194500 - (ch - Channel_D13) * 100;
+    }
+    else if (ch >= Channel_D17 && ch <= Channel_D20)
+    {
+        return 193800 - (ch - Channel_D17) * 100;
+    }
+    else if (ch >= Channel_D21 && ch <= Channel_D24)
+    {
+        return 193300 - (ch - Channel_D21) * 100;
+    }
+    else if (ch >= Channel_D25 && ch <= Channel_D28)
+    {
+        return 192800 - (ch - Channel_D25) * 100;
+    }
+    else if (ch >= Channel_D29 && ch <= Channel_D32)
+    {
+        return 192300 - (ch - Channel_D29) * 100;
+    }
+    else if (ch >= Channel_D33 && ch <= Channel_D36)
+    {
+        return 191000 - (ch - Channel_D33) * 100;
+    }
+    else if (ch >= Channel_D37 && ch <= Channel_D40)
+    {
+        return 190500 - (ch - Channel_D37) * 100;
+    }
+
+    if (ch >= Channel_F19600 && ch <= Channel_F19200)
+    {
+        return 196000 - (ch - Channel_F19600) * 100;
+    }
+
+    return (-1);
+}
+
+Channel_t
+Freq_To_ADVA_Channel(int f)
+{
+    int i;
+
+    switch (f)
+    {
+    case 196000: return Channel_D01;
+    case 195900: return Channel_D02;
+    case 195800: return Channel_D03;
+    case 195700: return Channel_D04;
+
+    case 195600: return Channel_DC1;
+
+    case 195500: return Channel_D05;
+    case 195400: return Channel_D06;
+    case 195300: return Channel_D07;
+    case 195200: return Channel_D08;
+
+    case 195100: return Channel_DC2;
+
+    case 195000: return Channel_D09;
+    case 194900: return Channel_D10;
+    case 194800: return Channel_D11;
+    case 194700: return Channel_D12;
+
+    case 194600: return Channel_DC3;
+
+    case 194500: return Channel_D13;
+    case 194400: return Channel_D14;
+    case 194300: return Channel_D15;
+    case 194200: return Channel_D16;
+
+    case 194100: return Channel_DC4;
+    case 194000: return Channel_DC9;
+
+    case 193800: return Channel_D17;
+    case 193700: return Channel_D18;
+    case 193600: return Channel_D19;
+    case 193500: return Channel_D20;
+
+    case 193900: return Channel_DC5;
+    case 193400: return Channel_DC6;
+
+    case 193300: return Channel_D21;
+    case 193200: return Channel_D22;
+    case 193100: return Channel_D23;
+    case 193000: return Channel_D24;
+
+    case 192900: return Channel_DC7;
+
+    case 192800: return Channel_D25;
+    case 192700: return Channel_D26;
+    case 192600: return Channel_D27;
+    case 192500: return Channel_D28;
+
+    case 192400: return Channel_DC8;
+
+    case 192300: return Channel_D29;
+    case 192200: return Channel_D30;
+    case 192100: return Channel_D31;
+    case 192000: return Channel_D32;
+
+    case 191000: return Channel_D33;
+    case 190900: return Channel_D34;
+    case 190800: return Channel_D35;
+    case 190700: return Channel_D36;
+
+    case 190600: return Channel_DL1;
+
+    case 190500: return Channel_D37;
+    case 190400: return Channel_D38;
+    case 190300: return Channel_D39;
+    case 190200: return Channel_D40;
+
+    case 190100: return Channel_DL2;
+
+    default: break;
+    }
+
+
+
+    for (i = 0; i < 64; ++i)
+    {
+        if (f == 196000 - 100*i)
+        {
+            return (Channel_D01 + (i));
+        }
+    }
+
+    return Channel_NOTDEFINED;
+}
+
+/**
+ * Return the highest/lowest ADMIN state.
+ */
+unsigned int
+GetAdminState(unsigned int Caps, int Dsbld)
+{
+    int i = 0;
+
+    for( i = 1; i < AdminState_MAX; ++i)
+    {
+        if (Dsbld == 1)
+        {
+            if (Caps & (1 << i))
+                return AdminState_MAX - 1 - i;
+        }
+        else
+        {
+            if (Caps & (1 << (AdminState_MAX - 1 - i)))
+                return i;
+
+        }
+    }
+
+    return 0;
+}

@@ -1,0 +1,5 @@
+"OperState_UNDEFINED" "0"
+"OperState_NR" "1"
+"OperState_ANR" "2"
+"OperState_OUT" "3"
+"OperState_UN" "4"

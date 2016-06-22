@@ -1,0 +1,696 @@
+
+#ifndef __RESOURCES_H__
+#define __RESOURCES_H__
+
+#include <SnmpAccess/Channel.h>
+#include <SnmpAccess/Types.h>
+
+struct _X_Module;
+struct _X_Port;
+struct _X_Addr;
+struct _X_Resource;
+typedef struct _X_Module* X_ModulePtr;
+typedef struct _X_Port* X_PortPtr;
+typedef struct _X_Addr* X_AddrPtr;
+typedef struct _X_Resource* X_ResourcePtr;
+
+#define X_RES_DIR_IN    (0)
+#define X_RES_DIR_OUT   (1)
+
+#define X_RES_REV_DIR(dir) \
+    ((dir == X_RES_DIR_IN) ? (X_RES_DIR_OUT) : (X_RES_DIR_IN))
+
+#define X_RES_IS_VALID_DIR(dir) \
+    ((dir == X_RES_DIR_IN) ? (1) : ((dir == X_RES_DIR_OUT) ? (1) : (0)))
+
+#define X_RES_DIR_TO_STR(dir) \
+    ((dir == X_RES_DIR_IN) ? ("IN") : ((dir == X_RES_DIR_OUT) ? ("OUT") : ("???")))
+
+/** OL-X may overlap with SHELF-X hence add extra offset for OL addresses **/
+#define X_RES_OL_SHELF_BASE     (100)
+#define X_RES_ECH_SHELF_BASE    (200)
+
+/******************************************************************************/
+
+#define X_RES_FREQ_INVALID      (-1)
+#define X_RES_FREQ_ANY          (0)
+
+#define X_RES_C_BAND_BASE               (0)
+    #define X_RES_C_BAND_MIN_FREQ       (192000) // GHz
+    #define X_RES_C_BAND_MAX_FREQ       (196000) // GHz
+#define X_RES_C_BAND_MAX_OFFSET         (81)
+
+#define X_RES_L_BAND_BASE               (82)
+    #define X_RES_L_BAND_MIN_FREQ       (187000) // GHz
+    #define X_RES_L_BAND_MAX_FREQ       (191000) // GHz
+#define X_RES_L_BAND_MAX_OFFSET         (41)
+
+#define X_RES_50GHz     (50)
+#define X_RES_100GHz    (100)
+
+/******************************************************************************/
+
+/**
+ * Generic structure for keeping addresses.
+ */
+typedef struct _X_Addr
+{
+    unsigned int        Shelf;
+    char                Slot[8];
+    char                Port[8];
+} X_Addr;
+
+/**
+ * Initialize with default values "0-0-0".
+ */
+X_AddrPtr
+X_Addr_Init(X_AddrPtr);
+
+X_AddrPtr
+X_Addr_Init2(X_AddrPtr, unsigned int, const char*, const char*);
+
+/**
+ * Parse the AID.
+ * @return 0 on success.
+ */
+int
+X_Addr_Parse(X_AddrPtr, const char *aid);
+
+
+int
+X_Addr_SetShelf(X_AddrPtr, const char *);
+
+int
+X_Addr_SetSlot(X_AddrPtr, const char *);
+
+/**
+ * Set port.
+ */
+int
+X_Addr_SetPort(X_AddrPtr, const char *);
+
+size_t
+X_Addr_Dump(const X_AddrPtr, char*, size_t);
+
+/**
+ * @return 0 if equal
+ */
+int
+X_Addr_Equal(const X_AddrPtr, const X_AddrPtr);
+
+/**
+ * Copy address structure.
+ */
+X_AddrPtr
+X_Addr_Copy(X_AddrPtr to, const X_AddrPtr from);
+
+/******************************************************************************/
+
+typedef struct
+{
+    X_Addr              Addr[2];
+    int                 Freq[2];
+    unsigned int        Index[2];
+} X_Crs;
+
+typedef X_Crs* X_CrsPtr;
+
+X_CrsPtr
+X_Crs_New(void);
+
+void
+X_Crs_Free(X_CrsPtr);
+
+/******************************************************************************/
+
+/**
+ * Module type.
+ */
+typedef enum
+{
+    X_MOD_TYPE_UNKNOWN = 0,
+    X_MOD_TYPE_OL,      /** OL **/
+    X_MOD_TYPE_ADAPT,   /** transponder / muxponder **/
+    X_MOD_TYPE_MUX,     /** filter **/
+    X_MOD_TYPE_XC,      /** cross-connect module **/
+    X_MOD_TYPE_AMP,     /** amplifier **/
+} X_ModuleType_t;
+
+/**
+ * Return string representation of the module type.
+ */
+const char*
+X_ModuleType_To_Str(X_ModuleType_t);
+
+/**
+ * Port category.
+ */
+typedef enum
+{
+    X_PORT_CAT_OTHER,           // default
+    X_PORT_CAT_MUX,             // N port @ filter
+    X_PORT_CAT_DEMUX,           // C port @ filter
+    X_PORT_CAT_ADAPT,           // C port @ transponder/muxponder
+    X_PORT_CAT_LINE,            // N port @ transponder/muxponder
+    X_PORT_CAT_UPGRADE,         // upgrade port (e.g. U port on the EROADM)
+    X_PORT_CAT_AMP_MID,         // mid-stage amp. port
+} X_PortCategory_t;
+
+/**
+ * Module
+ */
+typedef struct _X_Module
+{
+    /** The type of a module **/
+    X_ModuleType_t      ModType;
+
+    /** The address of a module **/
+    X_Addr              Addr;
+
+    /** List of all ports **/
+    X_List              Ports;
+
+    /** Mux. port (N port) of a MUX module **/
+    X_PortPtr           NetPort;
+    /** Mid-stage ampilifier port **/
+    X_PortPtr           AmpMidPort;
+    /** Upgrade port (e.g. EROADM-DC) **/
+    X_PortPtr           UpgradePort;
+    /** Demux. ports (C ports) of a MUX modules **/
+    X_List              DemuxPorts;
+    /** Adapt. ports (C ports) for transponders/muxponders **/
+    X_List              AdaptPorts;
+    /** Line ports (N,NE,NW ports) for transponders/muxponders **/
+    X_List              LinePorts;
+
+    /** Vendor specific **/
+    unsigned int        Index;          ///< SNMP index / AID numerical value
+    unsigned int        EqType;         ///< ADVA's equipment type
+    unsigned int        Mode;           ///< ADVA's mode of operation
+    unsigned int        RoadmNo;        ///< ADVA's ROADMNO parameter (for 8ROADMs)
+    char                Aid[MAX_AID_LEN]; ///< AID string representation
+    /***/
+
+} X_Module;
+
+/*
+ * Create a new module with default attributes.
+ */
+X_ModulePtr
+X_Module_New(void);
+
+/**
+ * Destroy module and release memory.
+ */
+void
+X_Module_Free(X_ModulePtr);
+
+/**
+ * Search for a Port with given addr.
+ * @return Pointer to a X_Port or NULL if not found.
+ */
+X_PortPtr
+X_Module_FindPort(X_ModulePtr, const X_AddrPtr);
+
+/**
+ * Create and add a port on the module.
+ * @param pMod Pointer to a X_Module
+ * @param pAddr Address of the port
+ * @param cat Category of the port
+ * @param falgs X_PORT_SUPPORT_XXX flags.
+ */
+X_PortPtr
+X_Module_AddPort(X_ModulePtr pMod, const X_AddrPtr pAddr,
+        X_PortCategory_t cat, unsigned int flags);
+
+/**
+ * Get reachable ports within this module starting from port with address 'pAddr'.
+ * This results from the module's internal sw. constraints.
+ * @param pAddr Pointer to an address structure refering to a starting port.
+ * @param dir   Direction - incoming / outgoing
+ * @param pList Pointer to a list for storing ports.
+ * @return 0 on success
+ */
+int
+X_Module_Get_Ports(X_ModulePtr,
+        const X_AddrPtr pAddr,
+        int dir,
+        int freq,
+        int alloc,
+        X_ListPtr pList);
+
+void
+X_Module_Dump(X_ModulePtr);
+
+void
+X_Module_Init_Constraints(X_ModulePtr);
+
+void
+X_Module_Update_Constraints(X_ModulePtr, X_ResourcePtr);
+
+/******************************************************************************/
+
+typedef enum
+{
+    X_PORT_TYPE_UNKNOWN = 0,
+    X_PORT_TYPE_LINE,
+    X_PORT_TYPE_OTHER,
+} X_PortType_t;
+
+typedef enum
+{
+    X_PORT_SUPPORT_TRANSPARENT  = (1 << 0),
+    X_PORT_SUPPORT_C_BAND_EVEN  = (1 << 1),
+    X_PORT_SUPPORT_C_BAND_ODD   = (1 << 2),
+    X_PORT_SUPPORT_L_BAND       = (1 << 3)
+} X_PortSupport_t;
+
+/** Port features **/
+typedef struct
+{
+    /** Flags reflecting channels **/
+    unsigned int        Flags;
+    /** Bitmap of supported channels **/
+    unsigned int        Supported[4];
+    /** Bitmap of constrainted channels **/
+    unsigned int        Constrained[4];
+    /** Bitmap of allocated channels **/
+    unsigned int        Allocated[4];
+} X_PortFeatures;
+
+typedef X_PortFeatures* X_PortFeaturesPtr;
+
+void
+X_PortFeatures_Init(X_PortFeaturesPtr);
+
+void
+X_PortFeatures_Init_Constraints(X_PortFeaturesPtr);
+
+void
+X_PortFeatures_Flag(X_PortFeaturesPtr, unsigned int flag, int set);
+
+void
+X_PortFeatures_Freq(X_PortFeaturesPtr, int freq, int set);
+
+int
+X_PortFeatures_Test_Supported_Freq(X_PortFeaturesPtr, unsigned int idx);
+
+void
+X_PortFeatures_Update_Constraints(X_PortFeaturesPtr, const X_PortFeaturesPtr);
+
+/**
+ * Port object.
+ */
+typedef struct _X_Port
+{
+    /** Port type **/
+    X_PortType_t        PortType;
+
+    /** Address **/
+    X_Addr              Addr;
+
+    /** Connections to other ports **/
+    X_PortPtr           Conn[2];
+
+    /** Parent module **/
+    X_ModulePtr         Module;
+
+    /** Port features (frequencies) **/
+    X_PortFeatures      Features;
+
+#if 0
+    /** Flags **/
+    unsigned int        SupportFlags;
+
+    /** Bitmap of supported wavelengths / freq. **/
+    char                Supported[16];
+
+    char                Constrained[16];
+#endif
+    /**
+     * struct ofp_phy_port ?
+     */
+
+    /** @TODO:
+     * admin / oper state
+     */
+
+    /** @TODO: assign some attributes: e.g:
+     *
+     * X_ListPtr  wavelengths; // list of supported wavelengths ?
+     * int grid; // 100GHz / 50GHz ITU grid ?
+     * char freq[16]; // bitmap of frequencies ?
+     */
+} X_Port;
+
+/**
+ * Create new X_Port object.
+ */
+X_PortPtr
+X_Port_New(const X_AddrPtr);
+
+/**
+ * Destroy Port object and release memory.
+ */
+void
+X_Port_Free(X_PortPtr);
+
+/**
+ * Set connection relationship for a X_Port object.
+ * @param pPort Pointer to an originating port
+ * @param pTo   Pointer to a terminatin port
+ * @param dir   Connection (X_RES_DIR_{IN,OUT})
+ * @return 0 on success
+ */
+int
+X_Port_SetConn(X_PortPtr pPort, X_PortPtr pTo, int dir);
+
+/**
+ * Return X_Port structure connected to a given port.
+ * @param pPort Pointer to X_Port structure
+ * @param dir   Direction of a connection (incoming, outgoing)
+ * @return Pointer to a connected port or NULL.
+ */
+X_PortPtr
+X_Port_GetConn(X_PortPtr pPort, int dir);
+
+void
+X_Port_DeleteConn(X_PortPtr pPort, int dir);
+
+void
+X_Port_Dump(X_PortPtr);
+
+void
+X_Port_Support(X_PortPtr, unsigned int flags, int set);
+
+int
+X_Port_Check_Frequency_By_Index(X_PortPtr, unsigned int);
+
+void
+X_Port_Set_Freq(X_PortPtr, int freq, int set);
+
+/******************************************************************************/
+
+/**
+ * Auxillary structure which is used to describe internal path.
+ */
+typedef struct _X_PathData
+{
+    /** Pointer to a port object which belongs to path **/
+    X_PortPtr           Port;
+    /** Pointer to a module object **/
+    X_ModulePtr         Module;
+    /** Previous PathData object in a tree **/
+    struct _X_PathData* Prev;
+    /** Path direction **/
+    int                 Dir;
+    /** Indicates if a particular Port terminates path (boolean) **/
+    int                 Term;
+} X_PathData;
+
+typedef X_PathData* X_PathDataPtr;
+
+X_PathDataPtr
+X_PathData_New(void);
+
+void
+X_PathData_Free(X_PathDataPtr);
+
+/******************************************************************************/
+
+/**
+ * Resource database.
+ */
+typedef struct _X_Resource
+{
+    X_MutexPtr          Mutex;
+
+    /** List of X_Module objects **/
+    X_List              Modules;
+
+    /** Pointer to a SNMP_Channel **/
+    SNMP_ChannelPtr     SNMPChan;
+
+    X_List              CrossConnects;
+
+    void                *UserData;
+} X_Resource;
+
+X_ResourcePtr
+X_Resource_New(void);
+
+void
+X_Resource_Free(X_ResourcePtr);
+
+X_ResourcePtr
+X_Resource_Init(X_ResourcePtr);
+
+void
+X_Resource_Deinit(X_ResourcePtr);
+
+void
+X_Resource_Lock(X_ResourcePtr);
+
+void
+X_Resource_Unlock(X_ResourcePtr);
+
+X_ModulePtr
+X_Resource_FindModule(X_ResourcePtr, const X_AddrPtr);
+
+X_PortPtr
+X_Resource_FindPort(X_ResourcePtr, const X_AddrPtr);
+
+void
+X_Resource_Clear(X_ResourcePtr);
+
+void
+X_Resource_Dump(X_ResourcePtr);
+
+int
+X_Resource_Set_User_Data(X_ResourcePtr, void*);
+
+int
+X_Resource_Get_User_Data(X_ResourcePtr, void**);
+
+/**
+ * Build a tree of feasible paths.
+ * @param pMod Pointer to a module which is a root of the tree
+ * @param dir Direction of processing
+ * @param pList List of X_PathData structures.
+ */
+void
+X_Resource_GetPathsTree(X_ResourcePtr,
+        X_ModulePtr pMod,
+        int dir,
+        int freq,
+        int alloc,
+        X_ListPtr pList);
+
+/**
+ * Constructs a tree of feasible paths starting from a port.
+ */
+void
+X_Resource_GetPathsTreeFromPort(X_ResourcePtr,
+        X_PortPtr pPort,
+        int dir,
+        int freq,
+        X_ListPtr pList);
+
+int
+X_Resource_PrunePaths(X_ListPtr, X_ModulePtr);
+
+void
+X_Resource_Printf(const char *fmt, ...);
+
+int
+X_Resource_DestroyModule(X_ResourcePtr, const X_AddrPtr);
+
+int
+X_Resource_Freq_To_Index(int);
+
+int
+X_Resource_Index_To_Freq(int);
+
+void
+X_Resource_Update(X_ResourcePtr);
+
+int
+X_Resource_Find_Path(X_ResourcePtr pRes, int dir, int freq,
+        X_ModulePtr pSrcMod, X_ModulePtr pDstMod, X_ListPtr pList);
+
+X_CrsPtr
+X_Resource_Find_Crs(X_ResourcePtr pRes, const X_AddrPtr From, int Freq);
+
+/******************************************************************************/
+
+/** Extensions to the Resource Model **/
+
+/**
+ * Operation type for loading data from ADVA's boxes.
+ */
+typedef enum
+{
+    X_RES_OPER_DESTROY  = 0,
+    X_RES_OPER_CREATE   = 1,
+    X_RES_OPER_UPDATE   = 2,
+} X_Resource_Oper_t;
+
+/**
+ * Get X_ModuleType based on ADVA's F7 eqtype.
+ */
+X_ModuleType_t
+X_GetModuleType(unsigned int eqtype);
+
+/**
+ * Load data based on EntityShelf.
+ */
+X_ModulePtr
+X_LoadEntityShelf(X_ResourcePtr, const EntityShelf*, X_Resource_Oper_t);
+
+/**
+ * Load data based on EntityModule.
+ */
+X_ModulePtr
+X_LoadEntityModule(X_ResourcePtr, const EntityModule*, X_Resource_Oper_t);
+
+/**
+ * Load data based on EntityOL.
+ */
+X_ModulePtr
+X_LoadEntityOL(X_ResourcePtr, const EntityOL*, X_Resource_Oper_t);
+
+/**
+ * Load data based on EntityConnection.
+ */
+int
+X_LoadEntityConnection(X_ResourcePtr, const EntityConnection*, X_Resource_Oper_t);
+
+
+/*******************************************************************************
+ *
+ * OpenFlow related functionality.
+ *
+ ******************************************************************************/
+
+/**
+ * Return list of OpenFlow ports.
+ */
+void
+X_Generate_OpenFlow_Ports(X_ResourcePtr, X_ListPtr);
+
+/*******************************************************************************
+ *
+ * Resource allocation functionality.
+ *
+ * EXPERIMENTAL
+ *
+ ******************************************************************************/
+
+/**
+ * Allocate resources.
+ * @param pRes  Pointer to the X_Resource structure.
+ * @param pPath Pointer to a list of X_PathData objects.
+ * @param freq  Frequency
+ */
+int
+X_Allocate_Resource(X_ResourcePtr pRes, X_ListPtr pPath, int freq);
+
+/**
+ * Deallocate resources.
+ */
+int
+X_Deallocate_Resources(X_ResourcePtr pRes, X_ListPtr pPath, int freq);
+
+/**
+ * Enable/disable admin states of service related entities along the path.
+ */
+int
+X_Update_Resources(X_ResourcePtr pRes, X_ListPtr pPath, int freq, int enable);
+
+/**
+ * Power equalization
+ **/
+int
+X_Power_Equalize(X_ResourcePtr pRes, X_ListPtr pPath, int freq);
+
+/**
+ * Do resource allocation on a module.
+ */
+int
+X_Module_Resource_Allocate(X_ResourcePtr pRes,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode, int freq);
+
+/**
+ * Do resource deallocation on a module.
+ */
+int
+X_Module_Resource_Deallocate(X_ResourcePtr pRes,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode, int freq);
+
+/** Allocate resources on a cross-connect modules **/
+int
+X_Module_Xc_Resource_Allocate(X_ResourcePtr pRes,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+int
+X_Module_Amp_Resource_Allocate(X_ResourcePtr,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+int
+X_Module_OL_Resource_Allocate(X_ResourcePtr,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+int
+X_Module_Adapt_Resource_Allocate(X_ResourcePtr,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+/** Allocate resources on a cross-connect module **/
+int
+X_Module_Xc_Resource_Deallocate(X_ResourcePtr pRes,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+int
+X_Module_Adapt_Resource_Deallocate(X_ResourcePtr,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+/**
+ * Enable/disable cross-connects along the path for cross-connect modules.
+ */
+int
+X_Module_Xc_Resource_Update(X_ResourcePtr pRes,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq, int enable);
+
+/**
+ * Trigger per-channel power equalization.
+ */
+int
+X_Module_Power_Equalize(X_ResourcePtr pRes,
+       X_ListPtr pPathDataList,
+       X_ListNodePtr pPathDataNode,
+       int freq);
+
+
+int
+X_Module_Xc_Check(X_ResourcePtr pRes,
+        X_ListPtr pPathDataList,
+        X_ListNodePtr pPathDataNode,
+        int freq);
+
+
+#endif

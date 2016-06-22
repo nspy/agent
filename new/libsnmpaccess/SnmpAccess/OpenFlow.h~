@@ -1,0 +1,210 @@
+
+#ifndef __OPENFLOW_H__
+#define __OPENFLOW_H__
+
+#include <SnmpAccess/Threads.h>
+#include <SnmpAccess/Queue.h>
+#include <SnmpAccess/List.h>
+#include <SnmpAccess/Timer.h>
+#include <openflow/include/openflow/openflow.h>
+#include <openflow/include/openflow/optical-ext.h>
+#include <openflow/lib/vconn.h>
+#include <openflow/lib/ofpbuf.h>
+#include <openflow/udatapath/switch-flow.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <assert.h>
+
+/******************************************************************************/
+#define TIME_SLICE_ALLOCATION_PUSH    0x0001
+#define TIME_SLICE_ALLOCATION_PULL    0x0002
+#define SWITCH_CONTROL_PUSH           0x0003
+#define SWITCH_CONTROL_PULL           0x0004
+#define TIME_SLICE_NUMBERS_PUSH       0x0005
+#define TIME_SLICE_NUMBERS_PULL       0x0006
+#define TIME_SLICE_DURATION_PUSH      0x0007
+#define TIME_SLICE_DURATION_PULL      0x0008
+#define K_CHARACTERS_PUSH             0x0009
+#define K_CHARACTERS_PULL             0x000A
+#define MODE_PUSH                     0x000B
+#define MODE_PULL                     0x000C
+#define HEADER_PUSH                   0x000D
+#define HEADER_PULL                   0x000E
+
+#define TIME_SLICE_ALLOCATION_ADD     0x0C01
+#define TIME_SLICE_ALLOCATION_DELETE  0x0801
+#define SWITCH_CONTROL_MODIFY         0x0C03
+
+
+typedef enum
+{
+    OPENFLOW_DRV_EV_CONNECT,
+    OPENFLOW_DRV_EV_DISCONNECT,
+} OpenFlow_Drvier_Event_Type;
+
+typedef struct
+{
+    OpenFlow_Drvier_Event_Type  Type;
+    char*                       Connection;
+} OpenFlow_Driver_Event;
+
+OpenFlow_Driver_Event*
+OpenFlow_Driver_Event_New(OpenFlow_Drvier_Event_Type);
+
+void
+OpenFlow_Driver_Event_Free(OpenFlow_Driver_Event*);
+
+
+typedef enum
+{
+    OPENFLOW_DRV_CB_FEATURES_REQ,
+    OPENFLOW_DRV_CB_MESSAGE,
+    OPENFLOW_DRV_CB_DISCONNECTED,
+    OPENFLOW_DRV_CB_MAX,
+} OpenFlow_Driver_Callback_Type;
+
+struct _OpenFlow_Driver;
+
+typedef struct _OpenFlow_Driver* OpenFlow_DriverPtr;
+
+typedef int (*OpenFlow_Driver_Callback_t)(OpenFlow_DriverPtr, OpenFlow_Driver_Callback_Type, struct ofp_header*);
+
+////////
+
+struct _mac_addr
+{
+  uint8_t mac_addr_c[6];
+}__attribute__((packed));
+
+struct _time_slice_alloction_buffer
+{
+  uint8_t tsa[25];
+  uint8_t pad[7];
+}__attribute__((packed));
+
+struct _header_buffer
+{
+  uint8_t hb[19];
+  uint8_t pad[13];
+}__attribute__((packed));
+
+struct _lut_addr_map
+{
+  struct _mac_addr dest_mac_addr;
+  struct _mac_addr source_mac_addr;
+  uint8_t pad_0[20];
+  uint8_t reserved[32];
+  uint64_t flag_mode;
+  uint16_t time_slice_num;
+  uint16_t frame_size;
+  uint32_t pad_1;
+  uint64_t time_slice_duration;
+  uint64_t msg_length;
+  uint16_t switch_control_one[100];
+  uint8_t pad_2[24];
+  uint16_t switch_control_two[100];
+  uint8_t pad_3[24];
+  struct _time_slice_alloction_buffer time_slice_alloction_buffer_1;
+  struct _time_slice_alloction_buffer time_slice_alloction_buffer_2;
+  struct _time_slice_alloction_buffer time_slice_alloction_buffer_3;
+  struct _time_slice_alloction_buffer time_slice_alloction_buffer_4;
+  struct _header_buffer header_buffer_1;
+  struct _header_buffer header_buffer_2;
+  struct _header_buffer header_buffer_3;
+  struct _header_buffer header_buffer_4;
+    
+}__attribute__((packed));
+
+
+
+typedef struct _OpenFlow_Driver
+{
+    /** Connection desription **/
+    char                *Connection;
+    /** Client connection **/
+    struct vconn        *VConn;
+    /** Server connection **/
+    struct pvconn       *PVConn;
+
+    void                *UserData;
+
+    int                 Connected;
+
+    int                 Run;
+
+    X_ThreadPtr         Thread;
+
+    X_QueuePtr          MsgQueue;
+
+    X_Timer             ReconnectTimer;
+
+    X_Timer             IdleTimer;
+
+    OpenFlow_Driver_Callback_t Callbacks[OPENFLOW_DRV_CB_MAX];
+
+} OpenFlow_Driver;
+
+/** Create new driver object **/
+OpenFlow_DriverPtr
+OpenFlow_Driver_New(void);
+
+/** Initialize with default values **/
+void
+_OpenFlow_Driver_Init(OpenFlow_DriverPtr);
+
+/** Main loop **/
+void
+OpenFlow_Driver_Main(OpenFlow_DriverPtr);
+
+void
+OpenFlow_Driver_Connect(OpenFlow_DriverPtr,const char*);
+
+/** Start thread **/
+void
+OpenFlow_Driver_Start(OpenFlow_DriverPtr);
+
+/** Stop thread **/
+void
+OpenFlow_Driver_Stop(OpenFlow_DriverPtr);
+
+int
+OpenFlow_Driver_Set_Callback(OpenFlow_DriverPtr, int, OpenFlow_Driver_Callback_t);
+
+int
+OpenFlow_Driver_Set_UserData(OpenFlow_DriverPtr, void*);
+
+int
+OpenFlow_Driver_Get_UserData(OpenFlow_DriverPtr, void**);
+
+void
+_OpenFlow_Driver_Handle_Connections(OpenFlow_DriverPtr);
+
+int
+_OpenFlow_Driver_Run_Callback(OpenFlow_DriverPtr, OpenFlow_Driver_Callback_Type, struct ofp_header*);
+
+void
+_OpenFlow_Driver_Handle_Message(OpenFlow_DriverPtr, struct vconn*,struct ofp_header*);
+
+void
+_OpenFlow_Driver_Send_Raw(OpenFlow_DriverPtr, char*, size_t);
+
+void
+_OpenFlow_Driver_Connect(OpenFlow_DriverPtr);
+
+void
+_OpenFlow_Driver_Disconnect(OpenFlow_DriverPtr);
+
+void
+_OpenFlow_Driver_Send_Probe(OpenFlow_DriverPtr);
+
+#endif

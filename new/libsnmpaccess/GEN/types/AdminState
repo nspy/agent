@@ -1,0 +1,8 @@
+"AdminState_UNDEFINED" "0"
+"AdminState_UAS" "1"
+"AdminState_IS" "2"
+"AdminState_AINS" "3"
+"AdminState_MGT" "4"
+"AdminState_MT" "5"
+"AdminState_DSBLD" "6"
+"AdminState_PPS" "7"

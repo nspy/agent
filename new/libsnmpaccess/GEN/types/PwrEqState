@@ -1,0 +1,6 @@
+"PwrEqState_UNDEFINED" "0"
+"PwrEqState_IDLE" "1"
+"PwrEqState_FAIL" "2"
+"PwrEqState_INPROGS" "3"
+"PwrEqState_ABT" "4"
+"PwrEqState_COMPL" "5"

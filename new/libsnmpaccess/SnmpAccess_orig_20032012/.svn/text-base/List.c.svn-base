@@ -1,0 +1,225 @@
+
+#include "List.h"
+
+X_ListPtr
+X_List_New(X_ListMemFree_t cb)
+{
+    X_ListPtr pList = (X_ListPtr)malloc(sizeof(X_List));
+    if (pList != NULL)
+    {
+        X_List_Init(pList, cb);
+    }
+    return pList;
+}
+
+X_ListPtr
+X_List_Init(X_ListPtr pList, X_ListMemFree_t cb)
+{
+    if (pList == NULL) return NULL;
+    pList->Head = NULL;
+    pList->Tail = NULL;
+    pList->Size = 0;
+    pList->Free = cb;
+    return pList;
+}
+
+X_ListPtr
+X_List_Copy(const X_ListPtr pList, X_ListCopy_t copyFun)
+{
+    X_ListPtr           pCopy;
+    X_ListNodePtr       pNode;
+
+    if (pList == NULL)
+    {
+        return NULL;
+    }
+
+    pCopy = X_List_New(pList->Free);
+
+    if (pCopy == NULL)
+    {
+        return NULL;
+    }
+
+    for (pNode = X_List_Head(pList); pNode; pNode = X_List_Next(pNode))
+    {
+        X_List_Append(pCopy, (copyFun != NULL) ? copyFun(pNode->Data) : pNode->Data);
+    }
+
+    return pCopy;
+}
+
+void
+X_List_Free(X_ListPtr pList)
+{
+    if (pList != NULL)
+    {
+        X_List_Clear(pList);
+        free(pList);
+    }
+}
+
+int
+X_List_Insert(X_ListPtr pList, X_ListNodePtr pNode, void *data)
+{
+    X_ListNodePtr newNode;
+
+    if (pList == NULL)
+    {
+        return -1;
+    }
+
+    newNode = (X_ListNodePtr)malloc(sizeof(X_ListNode));
+
+    if (newNode == NULL)
+    {
+        return -1;
+    }
+
+    newNode->Next = NULL;
+    newNode->Prev = NULL;
+    newNode->Data = data;
+
+    if (pList->Head == NULL && pList->Tail == NULL)
+    {
+        pList->Head = pList->Tail = newNode;
+    }
+    else
+    {
+        if (pNode == NULL)
+        {
+            newNode->Prev = pList->Tail;
+            pList->Tail->Next = newNode;
+            pList->Tail = newNode;
+        }
+        else
+        {
+            newNode->Next = pNode->Next;
+            newNode->Prev = pNode->Prev;
+            if (pNode->Prev != NULL)
+            {
+                pNode->Prev->Next = pNode->Next;
+            }
+            else
+            {
+                pList->Head = newNode;
+            }
+            pNode->Prev = newNode;
+        }
+    }
+
+    pList->Size += 1;
+
+    return 0;
+}
+
+X_ListNodePtr
+X_List_Destroy(X_ListPtr pList, X_ListNodePtr pNode)
+{
+    X_ListNodePtr pNext;
+    void *data;
+
+    if (pList == NULL)
+    {
+        return NULL;
+    }
+
+    pNext = pNode->Next;
+
+    if (X_List_Remove(pList, pNode, &data) == 0 && pList->Free != NULL)
+    {
+        pList->Free(data);
+    }
+
+    return pNext;
+}
+
+int
+X_List_Remove(X_ListPtr pList, X_ListNodePtr node, void **data)
+{
+    if (pList == NULL || node == NULL)
+    {
+        return -1;
+    }
+
+    if (pList->Size == 0)
+    {
+        return -1;
+    }
+
+    if (node->Next != NULL)
+    {
+        node->Next->Prev = node->Prev;
+    }
+    else
+    {
+        pList->Tail = node->Prev;
+    }
+
+    if (node->Prev != NULL)
+    {
+        node->Prev->Next = node->Next;
+    }
+    else
+    {
+        pList->Head = node->Next;
+    }
+
+    *data = node->Data;
+
+    free(node);
+
+    pList->Size -= 1;
+
+    return 0;
+}
+
+void
+X_List_Clear(X_ListPtr pList)
+{
+    if (pList != NULL)
+    {
+        while (pList->Size > 0)
+        {
+            X_List_Destroy(pList, pList->Tail);
+        }
+    }
+}
+
+X_ListNodePtr
+X_List_Head(X_ListPtr pList)
+{
+    return (pList != NULL) ? (pList->Head) : NULL;
+}
+
+X_ListNodePtr
+X_List_Tail(X_ListPtr pList)
+{
+    return (pList != NULL) ? (pList->Tail) : NULL;
+}
+
+X_ListNodePtr
+X_List_Find(X_ListPtr list, const void *data, X_ListCompare_t f)
+{
+    X_ListNodePtr node;
+
+    if (list == NULL) return NULL;
+
+    for (node = list->Head; node; node = node->Next)
+    {
+        if (f != NULL)
+        {
+            if (0 == f(data, node->Data))
+            {
+                return node;
+            }
+        }
+        else
+        {
+            if (data == node->Data)
+                return node;
+        }
+    }
+    return NULL;
+}
+

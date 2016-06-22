@@ -1,0 +1,39 @@
+
+#ifndef __VECTOR_H__
+#define __VECTOR_H__
+
+#include <stdlib.h>
+#include <string.h>
+
+typedef void (*Vector_MemFree_t)(void*);
+
+typedef struct
+{
+    unsigned int        ItemSize;
+    unsigned int        Capacity;
+    unsigned int        Size;
+    Vector_MemFree_t    Free;
+    char*               Data;
+} Vector;
+
+typedef Vector* VectorPtr;
+
+VectorPtr
+Vector_New(unsigned int ItemSize, unsigned int InitCapacity, Vector_MemFree_t Free);
+
+void
+Vector_Free(VectorPtr);
+
+int
+Vector_Append(VectorPtr, void*);
+
+int
+Vector_Get(VectorPtr, unsigned int, void**);
+
+void*
+Vector_At(VectorPtr, unsigned int);
+
+int
+Vector_Grow(VectorPtr, unsigned int);
+
+#endif
